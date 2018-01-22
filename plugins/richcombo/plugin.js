@@ -106,6 +106,29 @@ CKEDITOR.plugins.add( 'richcombo', {
 			},
 
 			/**
+			 * Updates state of the combo.
+			 *
+			 * @since 4.9.0
+			 * @param {CKEDITOR.editor} editor The editor instance which this button is
+			 * to be used by.
+			 */
+			updateState: function( editor ) {
+				// Don't change state while richcombo is active (https://dev.ckeditor.com/ticket/11793).
+				if ( this.getState() == CKEDITOR.TRISTATE_ON )
+					return;
+
+				var state = this.modes[ editor.mode ] ? CKEDITOR.TRISTATE_OFF : CKEDITOR.TRISTATE_DISABLED;
+
+				if ( editor.readOnly && !this.readOnly )
+					state = CKEDITOR.TRISTATE_DISABLED;
+
+				this.setState( state );
+				this.setValue( '' );
+				// Let plugin to disable button.
+				if ( state != CKEDITOR.TRISTATE_DISABLED && this.refresh )
+					this.refresh();
+			},
+			/**
 			 * Renders the combo.
 			 *
 			 * @param {CKEDITOR.editor} editor The editor instance which this button is
@@ -159,30 +182,12 @@ CKEDITOR.plugins.add( 'richcombo', {
 					clickFn: clickFn
 				};
 
-				function updateState() {
-					// Don't change state while richcombo is active (https://dev.ckeditor.com/ticket/11793).
-					if ( this.getState() == CKEDITOR.TRISTATE_ON )
-						return;
-
-					var state = this.modes[ editor.mode ] ? CKEDITOR.TRISTATE_OFF : CKEDITOR.TRISTATE_DISABLED;
-
-					if ( editor.readOnly && !this.readOnly )
-						state = CKEDITOR.TRISTATE_DISABLED;
-
-					this.setState( state );
-					this.setValue( '' );
-
-					// Let plugin to disable button.
-					if ( state != CKEDITOR.TRISTATE_DISABLED && this.refresh )
-						this.refresh();
-				}
-
 				// Update status when activeFilter, mode, selection or readOnly changes.
-				editor.on( 'activeFilterChange', updateState, this );
-				editor.on( 'mode', updateState, this );
-				editor.on( 'selectionChange', updateState, this );
+				editor.on( 'activeFilterChange', this.updateState, this );
+				editor.on( 'mode', this.updateState, this );
+				editor.on( 'selectionChange', this.updateState, this );
 				// If this combo is sensitive to readOnly state, update it accordingly.
-				!this.readOnly && editor.on( 'readOnly', updateState, this );
+				!this.readOnly && editor.on( 'readOnly', this.updateState, this );
 
 				var keyDownFn = CKEDITOR.tools.addFunction( function( ev, element ) {
 					ev = new CKEDITOR.dom.event( ev );
