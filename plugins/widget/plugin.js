@@ -1028,7 +1028,7 @@
 		/**
 		 * Applies the specified style to the widget.
 		 *
-		 * Since 4.10 this method applies all attributes styles and classes from {@link CKEDITOR.style}.
+		 * Since 4.10 this method applies all attributes and styles defined in {@link CKEDITOR.style}.
 		 *
 		 * Previously this method handled only classes defined in the style.
 		 *
@@ -1050,9 +1050,11 @@
 		},
 
 		/**
-		 * Checks if the specified style is applied to this widget.
+		 * Checks if the specified style is applied to this widget. It is highly recommended to use the
+		 * {@link CKEDITOR.style#checkActive} method instead of using this method directly,
+		 * because unlike style's method, this one does not perform any checks.
 		 *
-		 * Since 4.10 this method tests all attributes, styles and classes from {@link CKEDITOR.style}.
+		 * Since 4.10 this method tests all attributes and styles defined in {@link CKEDITOR.style}.
 		 *
 		 * Previously this method handled only classes defined in the style and passed
 		 * them to the {@link #hasClass} method.
@@ -1064,11 +1066,45 @@
 		 * @returns {Boolean} Whether the style is applied to this widget.
 		 */
 		checkStyleActive: function( style ) {
-			style = CKEDITOR.tools.copy( style );
-			style.element = this.element.getName();
-			style._.definition.ignoreReadonly = true;
+			var classes = getStyleClasses( style ),
+				def = style.getDefinition(),
+				attributes = def.attributes,
+				element = def.element,
+				styles = def.styles,
+				item,
+				styleDefinition = this.styleDefinition;
 
-			return CKEDITOR.style.prototype.checkElementMatch.call( style, this.element );
+			if ( !styleDefinition ) {
+				return false;
+			}
+
+			if ( element && element !== styleDefinition.element ){
+				return false;
+			}
+
+			if ( classes ) {
+				while ( ( item = classes.pop() ) ) {
+					if ( !this.hasClass( item ) )
+						return false;
+				}
+			}
+			if ( attributes ) {
+				for ( item in attributes ) {
+					if ( item !== 'class' && item !== 'style' ) {
+						if ( !( item in styleDefinition.attributes ) ) {
+							return false;
+						}
+					}
+				}
+			}
+			if ( styles ) {
+				for ( item in styles ) {
+					if ( !( item in styleDefinition.styles ) || styles[ item ] !== styleDefinition.styles[ item ] ) {
+						return false;
+					}
+				}
+			}
+			return true;
 		},
 
 		/**
@@ -1361,7 +1397,7 @@
 		/**
 		 * Removes the specified style from the widget.
 		 *
-		 * Since 4.10 this method removes all attributes, styles and classes defined in {@link CKEDITOR.style}.
+		 * Since 4.10 this method removes all attributes and styles defined in {@link CKEDITOR.style}.
 		 *
 		 * Previously this method removed only classes.
 		 *
@@ -2897,8 +2933,7 @@
 	}
 
 	function handleStylesOnDowncast( widget, widgetElement ) {
-		var attributes = widget.styleDefinition && widget.styleDefinition.attributes,
-			styledElement;
+		var styledElement;
 
 		if ( widgetElement ) {
 			if ( widget.styleDefinition && widgetElement.name !== widget.styleDefinition.element ) {
@@ -2909,8 +2944,8 @@
 			}
 
 			styledElement.attributes = styledElement.attributes || {};
-			if ( attributes && attributes.style ) {
-				styledElement.attributes.style = attributes.style;
+			if ( widget.styleDefinition && widget.styleDefinition.styles ) {
+				styledElement.attributes.style = CKEDITOR.tools.writeCssText( widget.styleDefinition.styles );
 			}
 		}
 	}
@@ -2971,10 +3006,10 @@
 		}
 		if ( style ) {
 			wrapper.attributes.style = style;
-			widgetDefinition.styleDefinition.attributes.style = style;
+			widgetDefinition.styleDefinition.styles = CKEDITOR.tools.parseCssText( style );
 		} else {
 			// If there are no styles remove it to make sure we don't have `styles=''` in our output.
-			delete widgetDefinition.styleDefinition.attributes.style;
+			delete widgetDefinition.styleDefinition.styles;
 		}
 	}
 
@@ -3148,7 +3183,23 @@
 	// LEFT, RIGHT, UP, DOWN, DEL, BACKSPACE - unblock default fake sel handlers.
 	var keystrokesNotBlockedByWidget = { 37: 1, 38: 1, 39: 1, 40: 1, 8: 1, 46: 1 };
 
-	// Applies or removes style's classes from widget.
+	function addRemoveClassToStyleDef( widget, className, remove ) {
+		var classes = widget.styleDefinition.attributes[ 'class' ];
+			classes = classes && classes.split( /\s+/ ) ;
+		if ( classes ) {
+			if ( !!remove ) {
+				if ( CKEDITOR.tools.indexOf( classes, className ) !== -1 ) {
+					classes.push( className );
+				}
+			} else {
+				CKEDITOR.tools.array.filter( classes, function( item ) {
+					return item !== className;
+				} );
+			}
+		}
+	}
+
+	// Applies or removes stylegit 's classes from widget.
 	// @param {CKEDITOR.style} style Custom widget style.
 	// @param {Boolean} apply Whether to apply or remove style.
 	function applyRemoveStyle( widget, style, apply ) {
@@ -3158,7 +3209,6 @@
 			cl,
 			styles = style.getDefinition().styles,
 			attributes = style.getDefinition().attributes;
-
 		// Ee... Something is wrong with this style.
 		if ( !classes && !styles && !attributes ) {
 			return;
@@ -3182,17 +3232,21 @@
 			}
 		}
 
-		toggleStyleAttribute( widget.element, styles, 1, apply );
-		toggleStyleAttribute( widget.element, attributes, 0, apply );
+		toggleStyleAttribute( widget, styles, 0, apply );
+		toggleStyleAttribute( widget, attributes, 1, apply );
 	}
 
-	function toggleStyleAttribute ( element, property, styleOrAttr, apply ) {
-		apply = apply ? 'set' : 'remove';
-		styleOrAttr = apply + ( styleOrAttr ? 'Style' : 'Attribute' );
-
-		for ( var key in property ) {
+	function toggleStyleAttribute ( widget, properties, attribute, apply ) {
+		var method = ( apply ? 'set' : 'remove' ) + ( attribute ? 'Attribute' : 'Style' ),
+			element = attribute ? widget.element : widget.wrapper;
+		for ( var key in properties ) {
 			if ( key !== 'class' ) {
-				element[ styleOrAttr ]( key, property[ key ] );
+				element[ method ]( key, properties[ key ] );
+				if ( apply ) {
+					widget.styleDefinition[ attribute ? 'attributes' : 'styles' ][ key ] = properties[ key ];
+				} else {
+					delete widget.styleDefinition[ attribute ? 'attributes' : 'styles' ][ key ];
+				}
 			}
 		}
 	}
@@ -3351,11 +3405,15 @@
 
 			for ( cl in previousClasses ) {
 				// Avoid removing and adding classes again.
-				if ( !( newClasses && newClasses[ cl ] ) )
+				if ( !( newClasses && newClasses[ cl ] ) ) {
 					this.removeClass( cl );
+					addRemoveClassToStyleDef( this, cl, 1 );
+				}
 			}
-			for ( cl in newClasses )
+			for ( cl in newClasses ) {
 				this.addClass( cl );
+				addRemoveClassToStyleDef( this, cl );
+			}
 
 			previousClasses = newClasses;
 		} );

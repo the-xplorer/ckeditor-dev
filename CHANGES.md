@@ -5,7 +5,7 @@
 
 New Features:
 
-* [#1674](https://github.com/ckeditor/ckeditor-dev/issues/1674): The [Widget](https://ckeditor.com/cke4/addon/widget) plugin now fully applies [`CKEDITOR.style.customHandlers.widget`](https://docs.ckeditor.com/ckeditor4/latest/api/CKEDITOR_style_customHandlers_widget.html) excepts for `element` when using methods `applyStyle` or `removeStyle`.
+* [#1674](https://github.com/ckeditor/ckeditor-dev/issues/1674): The [Widget](https://ckeditor.com/cke4/addon/widget) plugin now fully supports [`CKEDITOR.style`](https://docs.ckeditor.com/ckeditor4/latest/api/CKEDITOR_style.html) `attributes` and `styles` via `applyStyle` or `removeStyle` and `checkStyleActive` methods.
 
 ## CKEditor 4.9
 

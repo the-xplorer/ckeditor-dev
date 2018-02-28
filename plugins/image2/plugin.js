@@ -388,9 +388,8 @@
 					var alignElement = data.hasCaption ? this.element : image,
 						style,
 						align;
-					if ( this.styleDefinition && this.styleDefinition.attributes && this.styleDefinition.attributes.style ) {
-						style = CKEDITOR.tools.parseCssText( this.styleDefinition.attributes.style );
-						align = style[ 'float' ];
+					if ( this.styleDefinition && this.styleDefinition.styles ) {
+						align = this.styleDefinition.styles.float;
 					}
 					// Read the initial left/right alignment from the class set on element.
 					if ( alignClasses ) {
